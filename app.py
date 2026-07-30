@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
+import io
+import base64
 
 # ==========================================
 # Page Config
@@ -21,13 +23,15 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
 
     :root {
-        --bg-deep: #07211f;
-        --bg-mid: #0f3330;
-        --teal: #14b8a6;
-        --amber: #f59e0b;
-        --coral: #fb7185;
-        --text-light: #eef7f5;
-        --muted: #9fc7c1;
+        --bg-deep: #060e1f;
+        --bg-mid: #0c1a35;
+        --navy: #16305c;
+        --ice-blue: #9fc0e8;
+        --gold: #e0b04b;
+        --text-light: #f4f7fc;
+        --muted: #8ea3c4;
+        --risk-red: #ef4444;
+        --risk-green: #22c55e;
     }
 
     html, body, [class*="css"] {
@@ -39,7 +43,7 @@ st.markdown("""
 
     /* App background */
     .stApp {
-        background: radial-gradient(circle at 15% 0%, #114b46 0%, var(--bg-mid) 40%, var(--bg-deep) 100%);
+        background: radial-gradient(circle at 15% 0%, #1a3a6e 0%, var(--bg-mid) 40%, var(--bg-deep) 100%);
         color: var(--text-light);
     }
 
@@ -63,14 +67,14 @@ st.markdown("""
         opacity: 1 !important;
     }
     [data-testid="stSliderThumbValue"] {
-        color: var(--amber) !important;
+        color: var(--gold) !important;
         font-weight: 700 !important;
     }
 
     /* Sidebar */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #072320 0%, #041a18 100%);
-        border-right: 1px solid rgba(20, 184, 166, 0.25);
+        background: linear-gradient(180deg, #0a1a38 0%, #050d1c 100%);
+        border-right: 1px solid rgba(159, 192, 232, 0.2);
     }
     section[data-testid="stSidebar"] * {
         color: var(--text-light) !important;
@@ -81,7 +85,7 @@ st.markdown("""
         transition: background 0.2s ease;
     }
     section[data-testid="stSidebar"] [role="radiogroup"] label:hover {
-        background: rgba(20, 184, 166, 0.15);
+        background: rgba(159, 192, 232, 0.12);
     }
 
     /* Sticky top nav bar */
@@ -94,8 +98,8 @@ st.markdown("""
         align-items: center;
         padding: 0.9rem 1.6rem;
         border-radius: 16px;
-        background: linear-gradient(90deg, #0d3b3e 0%, #115e59 100%);
-        border: 1px solid rgba(20, 184, 166, 0.35);
+        background: linear-gradient(90deg, #0e2447 0%, #16305c 100%);
+        border: 1px solid rgba(159, 192, 232, 0.3);
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
         margin-bottom: 1.6rem;
         animation: fadeInDown 0.6s ease;
@@ -112,7 +116,7 @@ st.markdown("""
     .hero h1 {
         font-size: 2.3rem;
         font-weight: 700;
-        background: linear-gradient(90deg, #38bdf8, var(--teal), var(--amber), var(--coral));
+        background: linear-gradient(90deg, var(--ice-blue), var(--gold));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.3rem;
@@ -126,9 +130,9 @@ st.markdown("""
 
     /* Section cards */
     .card {
-        background: rgba(15, 51, 48, 0.6);
-        border: 1px solid rgba(20, 184, 166, 0.2);
-        border-left: 4px solid var(--teal);
+        background: rgba(22, 48, 92, 0.45);
+        border: 1px solid rgba(159, 192, 232, 0.2);
+        border-left: 4px solid var(--ice-blue);
         border-radius: 18px;
         padding: 1.4rem 1.6rem;
         margin-bottom: 1.2rem;
@@ -138,80 +142,124 @@ st.markdown("""
     }
     .card:hover {
         transform: translateY(-3px);
-        box-shadow: 0 10px 28px rgba(20, 184, 166, 0.22);
+        box-shadow: 0 10px 28px rgba(159, 192, 232, 0.18);
     }
-    .card h3 { color: var(--amber); margin-top: 0; }
+    .card h3 { color: var(--gold); margin-top: 0; }
 
-    /* Color variants so cards don't all look identical */
-    .card-amber { border-left-color: var(--amber); }
-    .card-amber h3 { color: var(--amber); }
-    .card-coral { border-left-color: var(--coral); }
-    .card-coral h3 { color: var(--coral); }
-    .card-violet { border-left-color: #a78bfa; }
-    .card-violet h3 { color: #a78bfa; }
-    .card-sky { border-left-color: #38bdf8; }
-    .card-sky h3 { color: #38bdf8; }
+    /* Color variants so cards don't all look identical, kept within the navy/blue/gold family */
+    .card-amber { border-left-color: var(--gold); }
+    .card-amber h3 { color: var(--gold); }
+    .card-steel { border-left-color: #6ea8e6; }
+    .card-steel h3 { color: #6ea8e6; }
+    .card-violet { border-left-color: #3b6bb5; }
+    .card-violet h3 { color: #7ba7de; }
+    .card-sky { border-left-color: var(--ice-blue); }
+    .card-sky h3 { color: var(--ice-blue); }
+
+    /* Risk score bar — deliberately bold so it reads at a glance */
+    .risk-track {
+        position: relative;
+        width: 100%;
+        height: 26px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(159, 192, 232, 0.25);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+    .risk-fill {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: var(--target-width);
+        border-radius: 999px;
+        animation: growBar 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        box-shadow: 0 0 16px rgba(224, 176, 75, 0.35);
+    }
+    @keyframes growBar {
+        from { width: 0%; }
+        to { width: var(--target-width); }
+    }
+    .risk-threshold {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: 2px;
+        height: 100%;
+        background: var(--gold);
+        z-index: 2;
+    }
+
+    /* Native bordered containers (st.container(border=True)) — used where real
+       interactive widgets need to sit inside a card, since raw HTML divs can't
+       wrap widgets rendered in separate Streamlit calls. */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(22, 48, 92, 0.45) !important;
+        border: 1px solid rgba(159, 192, 232, 0.25) !important;
+        border-left: 4px solid var(--ice-blue) !important;
+        border-radius: 18px !important;
+    }
 
     /* Buttons */
     .stButton>button {
-        background: linear-gradient(90deg, var(--teal), #0d9488);
+        background: linear-gradient(90deg, #1d4488, #16305c);
         color: white;
-        border: none;
+        border: 1px solid var(--gold);
         border-radius: 12px;
         padding: 0.7rem 1.4rem;
         font-weight: 700;
         font-size: 1rem;
         transition: transform 0.15s ease, box-shadow 0.15s ease;
-        box-shadow: 0 6px 18px rgba(20, 184, 166, 0.35);
+        box-shadow: 0 6px 18px rgba(22, 48, 92, 0.5);
     }
     .stButton>button:hover {
         transform: translateY(-2px) scale(1.02);
-        box-shadow: 0 10px 24px rgba(20, 184, 166, 0.5);
+        box-shadow: 0 10px 24px rgba(224, 176, 75, 0.35);
     }
 
-    /* Result badges */
+    /* Result badges — kept semantic red/green regardless of theme, since these carry meaning */
     .risk-high {
-        background: linear-gradient(90deg, #9f1239, var(--coral));
+        background: linear-gradient(90deg, #7f1d1d, var(--risk-red));
         padding: 1.1rem 1.4rem;
         border-radius: 14px;
         color: white;
         font-weight: 700;
         font-size: 1.1rem;
         animation: pulse 1.6s infinite, fadeIn 0.5s ease;
-        box-shadow: 0 8px 22px rgba(251, 113, 133, 0.4);
+        box-shadow: 0 8px 22px rgba(239, 68, 68, 0.4);
     }
     .risk-low {
-        background: linear-gradient(90deg, #0d9488, var(--teal));
+        background: linear-gradient(90deg, #14532d, var(--risk-green));
         padding: 1.1rem 1.4rem;
         border-radius: 14px;
         color: white;
         font-weight: 700;
         font-size: 1.1rem;
         animation: fadeIn 0.5s ease;
-        box-shadow: 0 8px 22px rgba(20, 184, 166, 0.35);
+        box-shadow: 0 8px 22px rgba(34, 197, 94, 0.35);
     }
 
     /* Chips */
     .chip {
         display: inline-block;
-        background: rgba(245, 158, 11, 0.15);
-        border: 1px solid rgba(245, 158, 11, 0.4);
-        color: #fde68a;
+        background: rgba(224, 176, 75, 0.15);
+        border: 1px solid rgba(224, 176, 75, 0.4);
+        color: #f2d38a;
         border-radius: 999px;
         padding: 0.25rem 0.8rem;
         font-size: 0.8rem;
         margin-right: 0.4rem;
         margin-bottom: 0.4rem;
     }
-    .chip-teal {
-        background: rgba(20, 184, 166, 0.15);
-        border-color: rgba(20, 184, 166, 0.4);
-        color: #99f6e4;
+    .chip-iceblue {
+        background: rgba(159, 192, 232, 0.15);
+        border-color: rgba(159, 192, 232, 0.4);
+        color: var(--ice-blue);
     }
     .chip-sky {
-        background: rgba(56, 189, 248, 0.15);
-        border-color: rgba(56, 189, 248, 0.4);
-        color: #bae6fd;
+        background: rgba(110, 168, 230, 0.15);
+        border-color: rgba(110, 168, 230, 0.4);
+        color: #bcd7f5;
     }
 
     /* Animations */
@@ -219,9 +267,9 @@ st.markdown("""
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes fadeInDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0.5); }
-        70% { box-shadow: 0 0 0 12px rgba(251, 113, 133, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0); }
+        0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+        70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
     }
 
     .footer {
@@ -230,15 +278,15 @@ st.markdown("""
         font-size: 0.8rem;
         margin-top: 2rem;
         padding-top: 1rem;
-        border-top: 1px solid rgba(20, 184, 166, 0.15);
+        border-top: 1px solid rgba(159, 192, 232, 0.15);
     }
 
     /* Toast fix — Streamlit's toast renders in its own light box and was
        never covered by the rules above, so its text defaulted to a washed-out
-       grey. Force it to match the app's dark-teal theme with high-contrast text. */
+       grey. Force it to match the app's navy theme with high-contrast text. */
     [data-testid="stToast"] {
-        background: linear-gradient(90deg, #0d3b3e, #115e59) !important;
-        border: 1px solid rgba(20, 184, 166, 0.45) !important;
+        background: linear-gradient(90deg, #0e2447, #16305c) !important;
+        border: 1px solid rgba(224, 176, 75, 0.45) !important;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
     }
     [data-testid="stToast"] * {
@@ -248,6 +296,22 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# ==========================================
+# Chart embedding helper
+# ==========================================
+def fig_to_html_img(fig):
+    """Render a matplotlib figure as a base64-encoded <img> tag string so it can
+    be embedded inside a single st.markdown HTML block. This keeps the chart
+    properly nested inside its card (st.pyplot in a separate call breaks the
+    surrounding div), and it also has no built-in fullscreen-expand button, so
+    it can't trigger Streamlit's white fullscreen overlay that clashed with our
+    light-on-dark chart text."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight", transparent=True, dpi=150)
+    plt.close(fig)
+    encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f'<img src="data:image/png;base64,{encoded}" style="width:100%; height:auto;" />'
 
 # ==========================================
 # Cached loaders (model + dataset load once, not on every rerun)
@@ -299,7 +363,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### Quick Facts")
     st.markdown("""
-    <div class="chip chip-teal">Gradient Boosting</div>
+    <div class="chip chip-iceblue">Gradient Boosting</div>
     <div class="chip chip-sky">HR Analytics</div>
     <div class="chip">Recall-Focused</div>
     """, unsafe_allow_html=True)
@@ -356,32 +420,30 @@ if page == "Predict Risk":
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### Employee Profile")
+    with st.container(border=True):
+        st.markdown("### Employee Profile")
 
-    col1, col2 = st.columns(2)
+        col1, col2 = st.columns(2)
 
-    with col1:
-        age = st.slider("Age", min_value=18, max_value=60, value=35)
-        monthly_income = st.number_input("Monthly Income ($)", min_value=1000, max_value=25000, value=5000, step=100)
-        job_role = st.selectbox("Job Role", [
-            "Sales Executive", "Research Scientist", "Laboratory Technician",
-            "Manufacturing Director", "Healthcare Representative", "Manager",
-            "Sales Representative", "Research Director", "Human Resources"
-        ])
-        overtime = st.selectbox("Works Overtime?", ["No", "Yes"])
-        distance_from_home = st.slider("Distance From Home (km)", min_value=1, max_value=30, value=9)
+        with col1:
+            age = st.slider("Age", min_value=18, max_value=60, value=35)
+            monthly_income = st.number_input("Monthly Income ($)", min_value=1000, max_value=25000, value=5000, step=100)
+            job_role = st.selectbox("Job Role", [
+                "Sales Executive", "Research Scientist", "Laboratory Technician",
+                "Manufacturing Director", "Healthcare Representative", "Manager",
+                "Sales Representative", "Research Director", "Human Resources"
+            ])
+            overtime = st.selectbox("Works Overtime?", ["No", "Yes"])
+            distance_from_home = st.slider("Distance From Home (km)", min_value=1, max_value=30, value=9)
 
-    with col2:
-        total_working_years = st.slider("Total Working Years (career)", min_value=0, max_value=40, value=10)
-        years_at_company = st.slider("Years At This Company", min_value=0, max_value=40, value=5)
-        work_life_balance = st.select_slider("Work-Life Balance", options=[1, 2, 3, 4],
-                                              value=3, help="1 = Bad, 2 = Good, 3 = Better, 4 = Best")
-        job_satisfaction = st.select_slider("Job Satisfaction", options=[1, 2, 3, 4],
-                                             value=3, help="1 = Low, 2 = Medium, 3 = High, 4 = Very High")
-        stock_option_level = st.select_slider("Stock Option Level", options=[0, 1, 2, 3], value=0)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+        with col2:
+            total_working_years = st.slider("Total Working Years (career)", min_value=0, max_value=40, value=10)
+            years_at_company = st.slider("Years At This Company", min_value=0, max_value=40, value=5)
+            work_life_balance = st.select_slider("Work-Life Balance", options=[1, 2, 3, 4],
+                                                  value=3, help="1 = Bad, 2 = Good, 3 = Better, 4 = Best")
+            job_satisfaction = st.select_slider("Job Satisfaction", options=[1, 2, 3, 4],
+                                                 value=3, help="1 = Low, 2 = Medium, 3 = High, 4 = Very High")
+            stock_option_level = st.select_slider("Stock Option Level", options=[0, 1, 2, 3], value=0)
 
     # ==========================================
     # Input Validation
@@ -442,49 +504,45 @@ if page == "Predict Risk":
             prediction = model.predict(df_input)[0]
             probability = model.predict_proba(df_input)[0][1]
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("### Result")
+        risk_label = "High Risk of Attrition" if prediction == 1 else "Low Risk of Attrition"
+        risk_class = "risk-high" if prediction == 1 else "risk-low"
+        bar_color_start = "#7f1d1d" if prediction == 1 else "#14532d"
+        bar_color_end = "#ef4444" if prediction == 1 else "#22c55e"
+        pct = probability * 100
+
+        st.markdown(f"""
+        <div class="card">
+            <h3 style="color: var(--gold);">Result</h3>
+            <div class="{risk_class}">
+                {risk_label} &nbsp;|&nbsp; Predicted probability: {probability:.1%}
+            </div>
+            <div style="margin-top: 1.2rem;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+                    <span style="color: var(--muted); font-size:0.85rem;">Risk score</span>
+                    <span style="color: var(--text-light); font-weight:700; font-size:0.95rem;">{probability:.1%}</span>
+                </div>
+                <div class="risk-track">
+                    <div class="risk-threshold"></div>
+                    <div class="risk-fill" style="--target-width: {pct:.1f}%; background: linear-gradient(90deg, {bar_color_start}, {bar_color_end});"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:0.3rem;">
+                    <span style="color: var(--muted); font-size:0.75rem;">0%</span>
+                    <span style="color: var(--muted); font-size:0.75rem;">50% threshold</span>
+                    <span style="color: var(--muted); font-size:0.75rem;">100%</span>
+                </div>
+            </div>
+            <p style="color: var(--muted); font-size:0.85rem; margin-top:1.1rem; margin-bottom:0;">
+                This estimate is based on the employee's profile compared against historical
+                attrition patterns. Use it as a decision-support signal, not a sole determinant.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
         if prediction == 1:
-            st.markdown(f"""
-            <div class="risk-high">
-                High Risk of Attrition &nbsp;|&nbsp; Predicted probability: {probability:.1%}
-            </div>
-            """, unsafe_allow_html=True)
             st.toast("High attrition risk detected — consider a retention check-in.")
         else:
-            st.markdown(f"""
-            <div class="risk-low">
-                Low Risk of Attrition &nbsp;|&nbsp; Predicted probability: {probability:.1%}
-            </div>
-            """, unsafe_allow_html=True)
             st.toast("Low attrition risk — employee looks stable.")
             st.balloons()
-
-        st.write("")
-        st.progress(float(probability), text=f"Risk score: {probability:.1%}")
-
-        # Small gauge visual — where this prediction sits on the 0-100% scale
-        gauge_color = "#fb7185" if probability >= 0.5 else "#14b8a6"
-        fig_g, ax_g = plt.subplots(figsize=(6, 0.9))
-        fig_g.patch.set_alpha(0)
-        ax_g.set_facecolor("none")
-        ax_g.barh([0], [1], color="#0f3330", height=0.5)
-        ax_g.barh([0], [probability], color=gauge_color, height=0.5)
-        ax_g.axvline(0.5, color="#9fc7c1", linestyle="--", linewidth=1)
-        ax_g.set_xlim(0, 1)
-        ax_g.set_yticks([])
-        ax_g.set_xticks([0, 0.5, 1.0])
-        ax_g.set_xticklabels(["0%", "50% threshold", "100%"], color="#eef7f5", fontsize=8)
-        for spine in ax_g.spines.values():
-            spine.set_visible(False)
-        st.pyplot(fig_g, use_container_width=True)
-
-        st.caption(
-            "This estimate is based on the employee's profile compared against historical "
-            "attrition patterns. Use it as a decision-support signal, not a sole determinant."
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
 # PAGE: Insights (live data charts + model info, combined)
@@ -498,68 +556,87 @@ elif page == "Insights":
     """, unsafe_allow_html=True)
 
     if hr_data is None:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.warning(
-            "Dataset file 'IBM_HR_Employee_Attrition_Data.csv' was not found alongside "
-            "this app, so the live charts can't load. Make sure it's in the same folder "
-            "(and pushed to your GitHub repo) as app.py."
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.warning(
+                "Dataset file 'IBM_HR_Employee_Attrition_Data.csv' was not found alongside "
+                "this app, so the live charts can't load. Make sure it's in the same folder "
+                "(and pushed to your GitHub repo) as app.py."
+            )
     else:
         overall_rate = (hr_data["Attrition"] == "Yes").mean()
         total_employees = len(hr_data)
         left_count = (hr_data["Attrition"] == "Yes").sum()
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Employees in dataset", f"{total_employees:,}")
-        m2.metric("Left the company", f"{left_count:,}")
-        m3.metric("Overall attrition rate", f"{overall_rate:.1%}")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+                <div>
+                    <div style="color: var(--muted); font-size:0.85rem;">Employees in dataset</div>
+                    <div style="color: var(--text-light); font-size:1.8rem; font-weight:700;">{total_employees:,}</div>
+                </div>
+                <div>
+                    <div style="color: var(--muted); font-size:0.85rem;">Left the company</div>
+                    <div style="color: var(--text-light); font-size:1.8rem; font-weight:700;">{left_count:,}</div>
+                </div>
+                <div>
+                    <div style="color: var(--muted); font-size:0.85rem;">Overall attrition rate</div>
+                    <div style="color: var(--gold); font-size:1.8rem; font-weight:700;">{overall_rate:.1%}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown('<div class="card card-amber">', unsafe_allow_html=True)
-            st.markdown("#### Attrition rate by department")
             dept_rate = (
                 hr_data.groupby("Department")["Attrition"]
                 .apply(lambda s: (s == "Yes").mean())
                 .sort_values(ascending=False)
             )
-            palette = ["#fb7185", "#f59e0b", "#facc15", "#a3e635", "#38bdf8"]
+            palette = ["#e0b04b", "#6ea8e6", "#9fc0e8", "#3b6bb5", "#c9922f"]
             bar_colors = [palette[i % len(palette)] for i in range(len(dept_rate))]
             fig, ax = plt.subplots(figsize=(4.2, 3.2))
             fig.patch.set_alpha(0)
             ax.set_facecolor("none")
             bars = ax.barh(dept_rate.index, dept_rate.values, color=bar_colors)
-            ax.set_xlabel("Attrition rate", color="#eef7f5")
-            ax.tick_params(colors="#eef7f5")
+            ax.set_xlabel("Attrition rate", color="#f4f7fc")
+            ax.tick_params(colors="#f4f7fc")
             for spine in ax.spines.values():
-                spine.set_color("#9fc7c1")
-            ax.xaxis.label.set_color("#eef7f5")
+                spine.set_color("#8ea3c4")
+            ax.xaxis.label.set_color("#f4f7fc")
             for bar, val in zip(bars, dept_rate.values):
                 ax.text(val + 0.005, bar.get_y() + bar.get_height() / 2,
-                        f"{val:.1%}", va="center", color="#eef7f5", fontsize=9)
-            st.pyplot(fig, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+                        f"{val:.1%}", va="center", color="#f4f7fc", fontsize=9)
+            dept_chart_html = fig_to_html_img(fig)
+
+            st.markdown(f"""
+            <div class="card card-amber">
+                <h4 style="color: var(--gold); margin-top:0;">Attrition rate by department</h4>
+                {dept_chart_html}
+            </div>
+            """, unsafe_allow_html=True)
 
         with col2:
-            st.markdown('<div class="card card-sky">', unsafe_allow_html=True)
-            st.markdown("#### Top predictors (model feature importance)")
             importances = pd.Series(model.feature_importances_, index=feature_columns)
             top_importances = importances.sort_values(ascending=False).head(8)
-            palette2 = ["#14b8a6", "#38bdf8", "#a78bfa", "#f472b6", "#fb923c"]
+            palette2 = ["#9fc0e8", "#6ea8e6", "#3b6bb5", "#16305c", "#e0b04b"]
             bar_colors2 = [palette2[i % len(palette2)] for i in range(len(top_importances))][::-1]
             fig2, ax2 = plt.subplots(figsize=(4.2, 3.2))
             fig2.patch.set_alpha(0)
             ax2.set_facecolor("none")
             ax2.barh(top_importances.index[::-1], top_importances.values[::-1], color=bar_colors2)
-            ax2.tick_params(colors="#eef7f5", labelsize=8)
+            ax2.tick_params(colors="#f4f7fc", labelsize=8)
             for spine in ax2.spines.values():
-                spine.set_color("#9fc7c1")
-            st.pyplot(fig2, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+                spine.set_color("#8ea3c4")
+            importance_chart_html = fig_to_html_img(fig2)
+
+            st.markdown(f"""
+            <div class="card card-sky">
+                <h4 style="color: var(--ice-blue); margin-top:0;">Top predictors (model feature importance)</h4>
+                {importance_chart_html}
+            </div>
+            """, unsafe_allow_html=True)
 
         st.caption(
             "Department attrition rate is computed live from the training CSV. "
@@ -625,7 +702,7 @@ elif page == "About":
         probability of attrition, alongside a High/Low risk label.</p>
     </div>
 
-    <div class="card card-coral">
+    <div class="card card-steel">
         <h3>Limitations</h3>
         <p>This is a decision-support signal, not a diagnosis. Predictions reflect
         historical patterns in the training data and should always be combined with
