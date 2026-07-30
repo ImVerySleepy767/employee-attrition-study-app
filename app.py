@@ -510,33 +510,84 @@ if page == "Predict Risk":
         bar_color_end = "#ef4444" if prediction == 1 else "#22c55e"
         pct = probability * 100
 
-        st.markdown(f"""
-        <div class="card">
-            <h3 style="color: var(--gold);">Result</h3>
-            <div class="{risk_class}">
-                {risk_label} &nbsp;|&nbsp; Predicted probability: {probability:.1%}
+        result_col, chart_col = st.columns([3, 2])
+
+        with result_col:
+            st.markdown(f"""
+            <div class="card">
+                <h3 style="color: var(--gold);">Result</h3>
+                <div class="{risk_class}">
+                    {risk_label} &nbsp;|&nbsp; Predicted probability: {probability:.1%}
+                </div>
+                <div style="margin-top: 1.2rem;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+                        <span style="color: var(--muted); font-size:0.85rem;">Risk score</span>
+                        <span style="color: var(--text-light); font-weight:700; font-size:0.95rem;">{probability:.1%}</span>
+                    </div>
+                    <div class="risk-track">
+                        <div class="risk-threshold"></div>
+                        <div class="risk-fill" style="--target-width: {pct:.1f}%; background: linear-gradient(90deg, {bar_color_start}, {bar_color_end});"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-top:0.3rem;">
+                        <span style="color: var(--muted); font-size:0.75rem;">0%</span>
+                        <span style="color: var(--muted); font-size:0.75rem;">50% threshold</span>
+                        <span style="color: var(--muted); font-size:0.75rem;">100%</span>
+                    </div>
+                </div>
+                <p style="color: var(--muted); font-size:0.85rem; margin-top:1.1rem; margin-bottom:0;">
+                    This estimate is based on the employee's profile compared against historical
+                    attrition patterns. Use it as a decision-support signal, not a sole determinant.
+                </p>
             </div>
-            <div style="margin-top: 1.2rem;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
-                    <span style="color: var(--muted); font-size:0.85rem;">Risk score</span>
-                    <span style="color: var(--text-light); font-weight:700; font-size:0.95rem;">{probability:.1%}</span>
+            """, unsafe_allow_html=True)
+
+        with chart_col:
+            if hr_data is not None:
+                # This employee's key inputs vs. the company-wide average — gives the
+                # HR user context for *why* a prediction might be high or low, not
+                # just the number itself.
+                compare_rows = [
+                    ("Age", age, hr_data["Age"].mean()),
+                    ("Monthly\nIncome ($k)", monthly_income / 1000, hr_data["MonthlyIncome"].mean() / 1000),
+                    ("Years at\ncompany", years_at_company, hr_data["YearsAtCompany"].mean()),
+                ]
+                labels = [r[0] for r in compare_rows]
+                employee_vals = [r[1] for r in compare_rows]
+                company_vals = [r[2] for r in compare_rows]
+
+                x = range(len(labels))
+                fig_c, ax_c = plt.subplots(figsize=(3.6, 3.4))
+                fig_c.patch.set_alpha(0)
+                ax_c.set_facecolor("none")
+                bar_w = 0.35
+                ax_c.bar([i - bar_w / 2 for i in x], employee_vals, width=bar_w,
+                         color="#e0b04b", label="This employee")
+                ax_c.bar([i + bar_w / 2 for i in x], company_vals, width=bar_w,
+                         color="#6ea8e6", label="Company average")
+                ax_c.set_xticks(list(x))
+                ax_c.set_xticklabels(labels, color="#f4f7fc", fontsize=8)
+                ax_c.tick_params(colors="#f4f7fc")
+                for spine in ax_c.spines.values():
+                    spine.set_color("#8ea3c4")
+                legend = ax_c.legend(fontsize=7, facecolor="none", edgecolor="none", loc="upper right")
+                for text in legend.get_texts():
+                    text.set_color("#f4f7fc")
+                compare_chart_html = fig_to_html_img(fig_c)
+
+                st.markdown(f"""
+                <div class="card card-sky">
+                    <h4 style="color: var(--ice-blue); margin-top:0; font-size:0.95rem;">
+                        This profile vs. company average
+                    </h4>
+                    {compare_chart_html}
                 </div>
-                <div class="risk-track">
-                    <div class="risk-threshold"></div>
-                    <div class="risk-fill" style="--target-width: {pct:.1f}%; background: linear-gradient(90deg, {bar_color_start}, {bar_color_end});"></div>
-                </div>
-                <div style="display:flex; justify-content:space-between; margin-top:0.3rem;">
-                    <span style="color: var(--muted); font-size:0.75rem;">0%</span>
-                    <span style="color: var(--muted); font-size:0.75rem;">50% threshold</span>
-                    <span style="color: var(--muted); font-size:0.75rem;">100%</span>
-                </div>
-            </div>
-            <p style="color: var(--muted); font-size:0.85rem; margin-top:1.1rem; margin-bottom:0;">
-                This estimate is based on the employee's profile compared against historical
-                attrition patterns. Use it as a decision-support signal, not a sole determinant.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+            else:
+                with st.container(border=True):
+                    st.caption(
+                        "Comparison chart needs the training CSV alongside app.py "
+                        "— see the Insights page for details."
+                    )
 
         if prediction == 1:
             st.toast("High attrition risk detected — consider a retention check-in.")
