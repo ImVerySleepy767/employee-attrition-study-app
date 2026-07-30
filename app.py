@@ -9,7 +9,7 @@ import time
 # ==========================================
 st.set_page_config(
     page_title="Employee Attrition Predictor",
-    page_icon="🧭",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -212,6 +212,20 @@ st.markdown("""
         padding-top: 1rem;
         border-top: 1px solid rgba(20, 184, 166, 0.15);
     }
+
+    /* Toast fix — Streamlit's toast renders in its own light box and was
+       never covered by the rules above, so its text defaulted to a washed-out
+       grey. Force it to match the app's dark-teal theme with high-contrast text. */
+    [data-testid="stToast"] {
+        background: linear-gradient(90deg, #0d3b3e, #115e59) !important;
+        border: 1px solid rgba(20, 184, 166, 0.45) !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    }
+    [data-testid="stToast"] * {
+        color: var(--text-light) !important;
+        opacity: 1 !important;
+        font-weight: 600 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -243,15 +257,15 @@ except FileNotFoundError:
 # Sidebar Navigation
 # ==========================================
 with st.sidebar:
-    st.markdown("## 🧭 Navigation")
+    st.markdown("## Navigation")
     page = st.radio(
         "Go to",
-        ["🔮 Predict Risk", "📊 Live Dashboard", "ℹ️ About This Tool", "📈 Model Info"],
+        ["Predict Risk", "Insights", "About"],
         label_visibility="collapsed"
     )
 
     st.markdown("---")
-    st.markdown("### 🎯 Quick Facts")
+    st.markdown("### Quick Facts")
     st.markdown("""
     <div class="chip">Gradient Boosting</div>
     <div class="chip">HR Analytics</div>
@@ -266,7 +280,7 @@ with st.sidebar:
 # ==========================================
 st.markdown("""
 <div class="navbar">
-    <h1>🧭 Attrition Insights</h1>
+    <h1>Attrition Insights</h1>
     <span>Employee Retention Analytics Platform</span>
 </div>
 """, unsafe_allow_html=True)
@@ -300,7 +314,7 @@ DEFAULTS = {
 # ==========================================
 # PAGE: Predict Risk
 # ==========================================
-if page == "🔮 Predict Risk":
+if page == "Predict Risk":
 
     st.markdown("""
     <div class="hero">
@@ -311,7 +325,7 @@ if page == "🔮 Predict Risk":
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 👤 Employee Profile")
+    st.markdown("### Employee Profile")
 
     col1, col2 = st.columns(2)
 
@@ -355,7 +369,7 @@ if page == "🔮 Predict Risk":
     # ==========================================
     # Predict
     # ==========================================
-    predict_clicked = st.button("🔮 Predict Attrition Risk", type="primary", disabled=bool(errors))
+    predict_clicked = st.button("Predict Attrition Risk", type="primary", disabled=bool(errors))
 
     if predict_clicked:
         with st.spinner("Analyzing employee profile..."):
@@ -397,26 +411,44 @@ if page == "🔮 Predict Risk":
             probability = model.predict_proba(df_input)[0][1]
 
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("### 🎯 Result")
+        st.markdown("###Result")
 
         if prediction == 1:
             st.markdown(f"""
             <div class="risk-high">
-                ⚠️ High Risk of Attrition &nbsp;|&nbsp; Predicted probability: {probability:.1%}
+                
+                High Risk of Attrition &nbsp;|&nbsp; Predicted probability: {probability:.1%}
             </div>
             """, unsafe_allow_html=True)
             st.toast("High attrition risk detected — consider a retention check-in.", icon="⚠️")
         else:
             st.markdown(f"""
             <div class="risk-low">
-                ✅ Low Risk of Attrition &nbsp;|&nbsp; Predicted probability: {probability:.1%}
+                Low Risk of Attrition &nbsp;|&nbsp; Predicted probability: {probability:.1%}
             </div>
             """, unsafe_allow_html=True)
-            st.toast("Low attrition risk — employee looks stable.", icon="✅")
+            st.toast("Low attrition risk — employee looks stable.", icon="")
             st.balloons()
 
         st.write("")
         st.progress(float(probability), text=f"Risk score: {probability:.1%}")
+
+        # Small gauge visual — where this prediction sits on the 0-100% scale
+        gauge_color = "#fb7185" if probability >= 0.5 else "#14b8a6"
+        fig_g, ax_g = plt.subplots(figsize=(6, 0.9))
+        fig_g.patch.set_alpha(0)
+        ax_g.set_facecolor("none")
+        ax_g.barh([0], [1], color="#0f3330", height=0.5)
+        ax_g.barh([0], [probability], color=gauge_color, height=0.5)
+        ax_g.axvline(0.5, color="#9fc7c1", linestyle="--", linewidth=1)
+        ax_g.set_xlim(0, 1)
+        ax_g.set_yticks([])
+        ax_g.set_xticks([0, 0.5, 1.0])
+        ax_g.set_xticklabels(["0%", "50% threshold", "100%"], color="#eef7f5", fontsize=8)
+        for spine in ax_g.spines.values():
+            spine.set_visible(False)
+        st.pyplot(fig_g, use_container_width=True)
+
         st.caption(
             "This estimate is based on the employee's profile compared against historical "
             "attrition patterns. Use it as a decision-support signal, not a sole determinant."
@@ -424,13 +456,13 @@ if page == "🔮 Predict Risk":
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# PAGE: Live Dashboard
+# PAGE: Insights (live data charts + model info, combined)
 # ==========================================
-elif page == "📊 Live Dashboard":
+elif page == "Insights":
     st.markdown("""
     <div class="hero">
-        <h1>Live Attrition Dashboard</h1>
-        <p>Real figures from the training dataset and the model itself — not mockups.</p>
+        <h1>Attrition Insights</h1>
+        <p>Real figures from the training dataset, and how the model itself was built.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -438,7 +470,7 @@ elif page == "📊 Live Dashboard":
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.warning(
             "Dataset file 'IBM_HR_Employee_Attrition_Data.csv' was not found alongside "
-            "this app, so the dashboard can't load. Make sure it's in the same folder "
+            "this app, so the live charts can't load. Make sure it's in the same folder "
             "(and pushed to your GitHub repo) as app.py."
         )
         st.markdown('</div>', unsafe_allow_html=True)
@@ -499,10 +531,41 @@ elif page == "📊 Live Dashboard":
             "Feature importance comes directly from the trained Gradient Boosting model."
         )
 
+    st.markdown("#### Under the hood: how the model was built")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("""
+        <div class="card">
+            <h3>Algorithm</h3>
+            <p>Tuned Gradient Boosting Classifier (scikit-learn), selected after
+            comparing against Decision Tree and Random Forest baselines, both
+            untuned and hyperparameter-tuned via RandomizedSearchCV.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown("""
+        <div class="card">
+            <h3>Evaluation Metrics</h3>
+            <p>Accuracy, Precision, Recall, and F1-Score, evaluated on a held-out
+            test set. Given the dataset's class imbalance (~84% stayed / 16% left),
+            Recall and F1 were prioritized over raw accuracy.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="card">
+        <h3>Feature Engineering</h3>
+        <p>Three engineered features were added to help the model: <b>TenureRatio</b>
+        (company tenure vs. total career length), <b>LowWLB_Overtime</b> (poor work-life
+        balance combined with overtime), and <b>IncomePerWorkingYear</b> (income scaled
+        by career experience).</p>
+    </div>
+    """, unsafe_allow_html=True)
+
 # ==========================================
 # PAGE: About
 # ==========================================
-elif page == "ℹ️ About This Tool":
+elif page == "About":
     st.markdown("""
     <div class="hero">
         <h1>About This Tool</h1>
@@ -512,7 +575,7 @@ elif page == "ℹ️ About This Tool":
 
     st.markdown("""
     <div class="card">
-        <h3>🎯 Purpose</h3>
+        <h3> Purpose</h3>
         <p>This tool estimates the likelihood that an employee will leave the company
         (attrition), based on workplace and demographic factors drawn from the IBM HR
         Employee Attrition dataset. It's designed to help HR business partners identify
@@ -528,51 +591,10 @@ elif page == "ℹ️ About This Tool":
     </div>
 
     <div class="card">
-        <h3>⚠️ Limitations</h3>
+        <h3> Limitations</h3>
         <p>This is a decision-support signal, not a diagnosis. Predictions reflect
         historical patterns in the training data and should always be combined with
         human judgment and context before any HR action is taken.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ==========================================
-# PAGE: Model Info
-# ==========================================
-elif page == "📈 Model Info":
-    st.markdown("""
-    <div class="hero">
-        <h1>Model Information</h1>
-        <p>A quick look under the hood.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-        <div class="card">
-            <h3>🤖 Algorithm</h3>
-            <p>Tuned Gradient Boosting Classifier (scikit-learn), selected after
-            comparing against Decision Tree and Random Forest baselines, both
-            untuned and hyperparameter-tuned via RandomizedSearchCV.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown("""
-        <div class="card">
-            <h3>🧪 Evaluation Metrics</h3>
-            <p>Accuracy, Precision, Recall, and F1-Score, evaluated on a held-out
-            test set. Given the dataset's class imbalance (~84% stayed / 16% left),
-            Recall and F1 were prioritized over raw accuracy.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="card">
-        <h3>🛠️ Feature Engineering</h3>
-        <p>Three engineered features were added to help the model: <b>TenureRatio</b>
-        (company tenure vs. total career length), <b>LowWLB_Overtime</b> (poor work-life
-        balance combined with overtime), and <b>IncomePerWorkingYear</b> (income scaled
-        by career experience).</p>
     </div>
     """, unsafe_allow_html=True)
 
