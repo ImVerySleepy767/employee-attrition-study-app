@@ -21,7 +21,7 @@ except FileNotFoundError:
              "Make sure it's in the same folder as this app.")
     st.stop()
 
-st.title("📊 Employee Attrition Risk Predictor")
+st.title(" Employee Attrition Risk Predictor")
 st.markdown(
     "Estimate the risk that an employee will leave the company, based on key "
     "workplace and demographic factors. Fill in the details below and click **Predict**."
