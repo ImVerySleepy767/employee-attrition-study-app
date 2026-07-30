@@ -9,7 +9,6 @@ import time
 # ==========================================
 st.set_page_config(
     page_title="Employee Attrition Predictor",
-    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -113,7 +112,7 @@ st.markdown("""
     .hero h1 {
         font-size: 2.3rem;
         font-weight: 700;
-        background: linear-gradient(90deg, var(--teal), var(--amber), var(--coral));
+        background: linear-gradient(90deg, #38bdf8, var(--teal), var(--amber), var(--coral));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.3rem;
@@ -129,6 +128,7 @@ st.markdown("""
     .card {
         background: rgba(15, 51, 48, 0.6);
         border: 1px solid rgba(20, 184, 166, 0.2);
+        border-left: 4px solid var(--teal);
         border-radius: 18px;
         padding: 1.4rem 1.6rem;
         margin-bottom: 1.2rem;
@@ -141,6 +141,16 @@ st.markdown("""
         box-shadow: 0 10px 28px rgba(20, 184, 166, 0.22);
     }
     .card h3 { color: var(--amber); margin-top: 0; }
+
+    /* Color variants so cards don't all look identical */
+    .card-amber { border-left-color: var(--amber); }
+    .card-amber h3 { color: var(--amber); }
+    .card-coral { border-left-color: var(--coral); }
+    .card-coral h3 { color: var(--coral); }
+    .card-violet { border-left-color: #a78bfa; }
+    .card-violet h3 { color: #a78bfa; }
+    .card-sky { border-left-color: #38bdf8; }
+    .card-sky h3 { color: #38bdf8; }
 
     /* Buttons */
     .stButton>button {
@@ -193,6 +203,16 @@ st.markdown("""
         margin-right: 0.4rem;
         margin-bottom: 0.4rem;
     }
+    .chip-teal {
+        background: rgba(20, 184, 166, 0.15);
+        border-color: rgba(20, 184, 166, 0.4);
+        color: #99f6e4;
+    }
+    .chip-sky {
+        background: rgba(56, 189, 248, 0.15);
+        border-color: rgba(56, 189, 248, 0.4);
+        color: #bae6fd;
+    }
 
     /* Animations */
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -239,7 +259,19 @@ def load_model():
 
 @st.cache_data
 def load_dataset():
-    return pd.read_csv("IBM_HR_Employee_Attrition_Data.csv")
+    # Your repo's file has been named a couple different ways across pushes
+    # (spaces vs underscores) — try the common variants instead of failing outright.
+    candidate_names = [
+        "IBM_HR_Employee_Attrition_Data.csv",
+        "IBM HR Employee Attrition Data.csv",
+        "IBM_HR_Employee_Attrition_Data (1).csv",
+    ]
+    for name in candidate_names:
+        try:
+            return pd.read_csv(name)
+        except FileNotFoundError:
+            continue
+    raise FileNotFoundError("Dataset CSV not found under any known filename.")
 
 try:
     model, feature_columns = load_model()
@@ -251,7 +283,7 @@ except FileNotFoundError:
 try:
     hr_data = load_dataset()
 except FileNotFoundError:
-    hr_data = None  # Dashboard page will show a friendly message instead of crashing
+    hr_data = None  # Insights page will show a friendly message instead of crashing
 
 # ==========================================
 # Sidebar Navigation
@@ -267,8 +299,8 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### Quick Facts")
     st.markdown("""
-    <div class="chip">Gradient Boosting</div>
-    <div class="chip">HR Analytics</div>
+    <div class="chip chip-teal">Gradient Boosting</div>
+    <div class="chip chip-sky">HR Analytics</div>
     <div class="chip">Recall-Focused</div>
     """, unsafe_allow_html=True)
 
@@ -411,23 +443,22 @@ if page == "Predict Risk":
             probability = model.predict_proba(df_input)[0][1]
 
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("###Result")
+        st.markdown("### Result")
 
         if prediction == 1:
             st.markdown(f"""
             <div class="risk-high">
-                
                 High Risk of Attrition &nbsp;|&nbsp; Predicted probability: {probability:.1%}
             </div>
             """, unsafe_allow_html=True)
-            st.toast("High attrition risk detected — consider a retention check-in.", icon="⚠️")
+            st.toast("High attrition risk detected — consider a retention check-in.")
         else:
             st.markdown(f"""
             <div class="risk-low">
                 Low Risk of Attrition &nbsp;|&nbsp; Predicted probability: {probability:.1%}
             </div>
             """, unsafe_allow_html=True)
-            st.toast("Low attrition risk — employee looks stable.", icon="")
+            st.toast("Low attrition risk — employee looks stable.")
             st.balloons()
 
         st.write("")
@@ -489,17 +520,19 @@ elif page == "Insights":
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown('<div class="card card-amber">', unsafe_allow_html=True)
             st.markdown("#### Attrition rate by department")
             dept_rate = (
                 hr_data.groupby("Department")["Attrition"]
                 .apply(lambda s: (s == "Yes").mean())
                 .sort_values(ascending=False)
             )
+            palette = ["#fb7185", "#f59e0b", "#facc15", "#a3e635", "#38bdf8"]
+            bar_colors = [palette[i % len(palette)] for i in range(len(dept_rate))]
             fig, ax = plt.subplots(figsize=(4.2, 3.2))
             fig.patch.set_alpha(0)
             ax.set_facecolor("none")
-            bars = ax.barh(dept_rate.index, dept_rate.values, color="#f59e0b")
+            bars = ax.barh(dept_rate.index, dept_rate.values, color=bar_colors)
             ax.set_xlabel("Attrition rate", color="#eef7f5")
             ax.tick_params(colors="#eef7f5")
             for spine in ax.spines.values():
@@ -512,14 +545,16 @@ elif page == "Insights":
             st.markdown('</div>', unsafe_allow_html=True)
 
         with col2:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown('<div class="card card-sky">', unsafe_allow_html=True)
             st.markdown("#### Top predictors (model feature importance)")
             importances = pd.Series(model.feature_importances_, index=feature_columns)
             top_importances = importances.sort_values(ascending=False).head(8)
+            palette2 = ["#14b8a6", "#38bdf8", "#a78bfa", "#f472b6", "#fb923c"]
+            bar_colors2 = [palette2[i % len(palette2)] for i in range(len(top_importances))][::-1]
             fig2, ax2 = plt.subplots(figsize=(4.2, 3.2))
             fig2.patch.set_alpha(0)
             ax2.set_facecolor("none")
-            ax2.barh(top_importances.index[::-1], top_importances.values[::-1], color="#14b8a6")
+            ax2.barh(top_importances.index[::-1], top_importances.values[::-1], color=bar_colors2)
             ax2.tick_params(colors="#eef7f5", labelsize=8)
             for spine in ax2.spines.values():
                 spine.set_color("#9fc7c1")
@@ -535,7 +570,7 @@ elif page == "Insights":
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
-        <div class="card">
+        <div class="card card-sky">
             <h3>Algorithm</h3>
             <p>Tuned Gradient Boosting Classifier (scikit-learn), selected after
             comparing against Decision Tree and Random Forest baselines, both
@@ -544,7 +579,7 @@ elif page == "Insights":
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("""
-        <div class="card">
+        <div class="card card-violet">
             <h3>Evaluation Metrics</h3>
             <p>Accuracy, Precision, Recall, and F1-Score, evaluated on a held-out
             test set. Given the dataset's class imbalance (~84% stayed / 16% left),
@@ -553,7 +588,7 @@ elif page == "Insights":
         """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div class="card">
+    <div class="card card-amber">
         <h3>Feature Engineering</h3>
         <p>Three engineered features were added to help the model: <b>TenureRatio</b>
         (company tenure vs. total career length), <b>LowWLB_Overtime</b> (poor work-life
@@ -574,24 +609,24 @@ elif page == "About":
     """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div class="card">
-        <h3> Purpose</h3>
+    <div class="card card-sky">
+        <h3>Purpose</h3>
         <p>This tool estimates the likelihood that an employee will leave the company
         (attrition), based on workplace and demographic factors drawn from the IBM HR
         Employee Attrition dataset. It's designed to help HR business partners identify
         at-risk employees early and act with targeted retention strategies.</p>
     </div>
 
-    <div class="card">
-        <h3>⚙️ How It Works</h3>
+    <div class="card card-violet">
+        <h3>How It Works</h3>
         <p>You provide 10 key inputs (age, income, job role, overtime, tenure, etc.).
         Less-influential fields are filled with sensible dataset averages behind the
         scenes so the form stays quick to use. The trained model then returns a
         probability of attrition, alongside a High/Low risk label.</p>
     </div>
 
-    <div class="card">
-        <h3> Limitations</h3>
+    <div class="card card-coral">
+        <h3>Limitations</h3>
         <p>This is a decision-support signal, not a diagnosis. Predictions reflect
         historical patterns in the training data and should always be combined with
         human judgment and context before any HR action is taken.</p>
