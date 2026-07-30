@@ -1,6 +1,7 @@
 import joblib
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 import time
 
 # ==========================================
@@ -8,64 +9,102 @@ import time
 # ==========================================
 st.set_page_config(
     page_title="Employee Attrition Predictor",
-    page_icon="📊",
+    page_icon="🧭",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ==========================================
-# Custom CSS — Fonts, Colors, Animations
+# Custom CSS — Fonts, Colors, Contrast Fix, Animations
 # ==========================================
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Inter:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
 
-    html, body, [class*="css"]  {
-        font-family: 'Inter', sans-serif;
+    :root {
+        --bg-deep: #07211f;
+        --bg-mid: #0f3330;
+        --teal: #14b8a6;
+        --amber: #f59e0b;
+        --coral: #fb7185;
+        --text-light: #eef7f5;
+        --muted: #9fc7c1;
     }
 
-    h1, h2, h3 {
-        font-family: 'Poppins', sans-serif;
+    html, body, [class*="css"] {
+        font-family: 'Manrope', sans-serif;
+    }
+    h1, h2, h3, h4 {
+        font-family: 'Space Grotesk', sans-serif;
     }
 
-    /* App background gradient */
+    /* App background */
     .stApp {
-        background: linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #312e81 100%);
-        color: #f1f5f9;
+        background: radial-gradient(circle at 15% 0%, #114b46 0%, var(--bg-mid) 40%, var(--bg-deep) 100%);
+        color: var(--text-light);
     }
 
-    /* Sidebar styling */
+    /* ============ CONTRAST FIX ============ */
+    /* Streamlit renders widget labels & slider tick numbers with its own
+       light-theme defaults. Without forcing color here, they render dark-on-dark
+       and become unreadable — this block is the actual fix for that bug. */
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stWidgetLabel"] label,
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] li,
+    [data-testid="stMetricLabel"],
+    [data-testid="stMetricValue"] {
+        color: var(--text-light) !important;
+    }
+    [data-testid="stTickBarMin"],
+    [data-testid="stTickBarMax"],
+    [data-testid="stCaptionContainer"] p,
+    [data-testid="stCaptionContainer"] {
+        color: var(--muted) !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stSliderThumbValue"] {
+        color: var(--amber) !important;
+        font-weight: 700 !important;
+    }
+
+    /* Sidebar */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%);
-        border-right: 1px solid rgba(148, 163, 184, 0.2);
+        background: linear-gradient(180deg, #072320 0%, #041a18 100%);
+        border-right: 1px solid rgba(20, 184, 166, 0.25);
     }
     section[data-testid="stSidebar"] * {
-        color: #e2e8f0 !important;
+        color: var(--text-light) !important;
+    }
+    section[data-testid="stSidebar"] [role="radiogroup"] label {
+        border-radius: 10px;
+        padding: 0.35rem 0.6rem;
+        transition: background 0.2s ease;
+    }
+    section[data-testid="stSidebar"] [role="radiogroup"] label:hover {
+        background: rgba(20, 184, 166, 0.15);
     }
 
-    /* Top nav bar */
+    /* Sticky top nav bar */
     .navbar {
+        position: sticky;
+        top: 0;
+        z-index: 999;
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 0.9rem 1.6rem;
         border-radius: 16px;
-        background: linear-gradient(90deg, #7c3aed 0%, #db2777 100%);
-        box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
+        background: linear-gradient(90deg, #0d3b3e 0%, #115e59 100%);
+        border: 1px solid rgba(20, 184, 166, 0.35);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
         margin-bottom: 1.6rem;
         animation: fadeInDown 0.6s ease;
     }
-    .navbar h1 {
-        color: white;
-        font-size: 1.4rem;
-        margin: 0;
-    }
-    .navbar span {
-        color: rgba(255,255,255,0.85);
-        font-size: 0.85rem;
-    }
+    .navbar h1 { color: white; font-size: 1.4rem; margin: 0; }
+    .navbar span { color: var(--muted); font-size: 0.85rem; }
 
-    /* Hero / title card */
+    /* Hero */
     .hero {
         text-align: center;
         padding: 1.8rem 1rem 1.2rem 1rem;
@@ -74,22 +113,22 @@ st.markdown("""
     .hero h1 {
         font-size: 2.3rem;
         font-weight: 700;
-        background: linear-gradient(90deg, #a78bfa, #f472b6, #fb923c);
+        background: linear-gradient(90deg, var(--teal), var(--amber), var(--coral));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.3rem;
     }
     .hero p {
-        color: #cbd5e1;
+        color: var(--muted);
         font-size: 1.02rem;
         max-width: 640px;
         margin: 0 auto;
     }
 
-    /* Section card wrapper */
+    /* Section cards */
     .card {
-        background: rgba(30, 41, 59, 0.7);
-        border: 1px solid rgba(148, 163, 184, 0.15);
+        background: rgba(15, 51, 48, 0.6);
+        border: 1px solid rgba(20, 184, 166, 0.2);
         border-radius: 18px;
         padding: 1.4rem 1.6rem;
         margin-bottom: 1.2rem;
@@ -99,58 +138,55 @@ st.markdown("""
     }
     .card:hover {
         transform: translateY(-3px);
-        box-shadow: 0 10px 28px rgba(124, 58, 237, 0.25);
+        box-shadow: 0 10px 28px rgba(20, 184, 166, 0.22);
     }
-    .card h3 {
-        color: #f472b6;
-        margin-top: 0;
-    }
+    .card h3 { color: var(--amber); margin-top: 0; }
 
     /* Buttons */
     .stButton>button {
-        background: linear-gradient(90deg, #7c3aed, #db2777);
+        background: linear-gradient(90deg, var(--teal), #0d9488);
         color: white;
         border: none;
         border-radius: 12px;
         padding: 0.7rem 1.4rem;
-        font-weight: 600;
+        font-weight: 700;
         font-size: 1rem;
         transition: transform 0.15s ease, box-shadow 0.15s ease;
-        box-shadow: 0 6px 18px rgba(219, 39, 119, 0.35);
+        box-shadow: 0 6px 18px rgba(20, 184, 166, 0.35);
     }
     .stButton>button:hover {
         transform: translateY(-2px) scale(1.02);
-        box-shadow: 0 10px 24px rgba(219, 39, 119, 0.5);
+        box-shadow: 0 10px 24px rgba(20, 184, 166, 0.5);
     }
 
     /* Result badges */
     .risk-high {
-        background: linear-gradient(90deg, #b91c1c, #ef4444);
+        background: linear-gradient(90deg, #9f1239, var(--coral));
         padding: 1.1rem 1.4rem;
         border-radius: 14px;
         color: white;
-        font-weight: 600;
+        font-weight: 700;
         font-size: 1.1rem;
         animation: pulse 1.6s infinite, fadeIn 0.5s ease;
-        box-shadow: 0 8px 22px rgba(239, 68, 68, 0.4);
+        box-shadow: 0 8px 22px rgba(251, 113, 133, 0.4);
     }
     .risk-low {
-        background: linear-gradient(90deg, #15803d, #22c55e);
+        background: linear-gradient(90deg, #0d9488, var(--teal));
         padding: 1.1rem 1.4rem;
         border-radius: 14px;
         color: white;
-        font-weight: 600;
+        font-weight: 700;
         font-size: 1.1rem;
         animation: fadeIn 0.5s ease;
-        box-shadow: 0 8px 22px rgba(34, 197, 94, 0.35);
+        box-shadow: 0 8px 22px rgba(20, 184, 166, 0.35);
     }
 
-    /* Metric-like chips */
+    /* Chips */
     .chip {
         display: inline-block;
-        background: rgba(124, 58, 237, 0.18);
-        border: 1px solid rgba(167, 139, 250, 0.4);
-        color: #ddd6fe;
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        color: #fde68a;
         border-radius: 999px;
         padding: 0.25rem 0.8rem;
         font-size: 0.8rem;
@@ -159,47 +195,49 @@ st.markdown("""
     }
 
     /* Animations */
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(14px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fadeInDown {
-        from { opacity: 0; transform: translateY(-14px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-        70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        0% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0.5); }
+        70% { box-shadow: 0 0 0 12px rgba(251, 113, 133, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0); }
     }
 
-    /* Footer */
     .footer {
         text-align: center;
-        color: #94a3b8;
+        color: var(--muted);
         font-size: 0.8rem;
         margin-top: 2rem;
         padding-top: 1rem;
-        border-top: 1px solid rgba(148, 163, 184, 0.15);
+        border-top: 1px solid rgba(20, 184, 166, 0.15);
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# Load trained model artifact
+# Cached loaders (model + dataset load once, not on every rerun)
 # ==========================================
-try:
+@st.cache_resource
+def load_model():
     artifact = joblib.load("best_attrition_model.pkl")
-    model = artifact["model"]
-    feature_columns = artifact["feature_columns"]
+    return artifact["model"], artifact["feature_columns"]
+
+@st.cache_data
+def load_dataset():
+    return pd.read_csv("IBM_HR_Employee_Attrition_Data.csv")
+
+try:
+    model, feature_columns = load_model()
 except FileNotFoundError:
     st.error("Model file 'best_attrition_model.pkl' not found. "
              "Make sure it's in the same folder as this app.")
     st.stop()
+
+try:
+    hr_data = load_dataset()
+except FileNotFoundError:
+    hr_data = None  # Dashboard page will show a friendly message instead of crashing
 
 # ==========================================
 # Sidebar Navigation
@@ -208,7 +246,7 @@ with st.sidebar:
     st.markdown("## 🧭 Navigation")
     page = st.radio(
         "Go to",
-        ["🔮 Predict Risk", "ℹ️ About This Tool", "📈 Model Info"],
+        ["🔮 Predict Risk", "📊 Live Dashboard", "ℹ️ About This Tool", "📈 Model Info"],
         label_visibility="collapsed"
     )
 
@@ -228,7 +266,7 @@ with st.sidebar:
 # ==========================================
 st.markdown("""
 <div class="navbar">
-    <h1>📊 Attrition Insights</h1>
+    <h1>🧭 Attrition Insights</h1>
     <span>Employee Retention Analytics Platform</span>
 </div>
 """, unsafe_allow_html=True)
@@ -323,7 +361,7 @@ if page == "🔮 Predict Risk":
         with st.spinner("Analyzing employee profile..."):
             time.sleep(0.6)  # brief pause purely for perceived feedback
 
-            # 1. Assemble the full feature row
+            # 1. Assemble the full feature row (interactive inputs + sensible defaults)
             row = {
                 "Age": age,
                 "MonthlyIncome": monthly_income,
@@ -339,19 +377,19 @@ if page == "🔮 Predict Risk":
             }
             df_input = pd.DataFrame([row])
 
-            # 2. Recreate engineered features
+            # 2. Recreate the engineered features exactly as in the notebook
             df_input["TenureRatio"] = df_input["YearsAtCompany"] / (df_input["TotalWorkingYears"] + 1e-5)
             df_input["LowWLB_Overtime"] = (
                 (df_input["WorkLifeBalance"] <= 2) & (df_input["OverTime"] == "Yes")
             ).astype(int)
             df_input["IncomePerWorkingYear"] = df_input["MonthlyIncome"] / (df_input["TotalWorkingYears"] + 1)
 
-            # 3. One-hot encode
+            # 3. One-hot encode categorical columns (same as training)
             categorical_cols = ["BusinessTravel", "Department", "EducationField",
                                  "Gender", "JobRole", "MaritalStatus", "OverTime"]
             df_input = pd.get_dummies(df_input, columns=categorical_cols, drop_first=True)
 
-            # 4. Align columns
+            # 4. Align to the exact columns the model was trained on
             df_input = df_input.reindex(columns=feature_columns, fill_value=0)
 
             # 5. Predict
@@ -384,6 +422,82 @@ if page == "🔮 Predict Risk":
             "attrition patterns. Use it as a decision-support signal, not a sole determinant."
         )
         st.markdown('</div>', unsafe_allow_html=True)
+
+# ==========================================
+# PAGE: Live Dashboard
+# ==========================================
+elif page == "📊 Live Dashboard":
+    st.markdown("""
+    <div class="hero">
+        <h1>Live Attrition Dashboard</h1>
+        <p>Real figures from the training dataset and the model itself — not mockups.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if hr_data is None:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.warning(
+            "Dataset file 'IBM_HR_Employee_Attrition_Data.csv' was not found alongside "
+            "this app, so the dashboard can't load. Make sure it's in the same folder "
+            "(and pushed to your GitHub repo) as app.py."
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        overall_rate = (hr_data["Attrition"] == "Yes").mean()
+        total_employees = len(hr_data)
+        left_count = (hr_data["Attrition"] == "Yes").sum()
+
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Employees in dataset", f"{total_employees:,}")
+        m2.metric("Left the company", f"{left_count:,}")
+        m3.metric("Overall attrition rate", f"{overall_rate:.1%}")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown("#### Attrition rate by department")
+            dept_rate = (
+                hr_data.groupby("Department")["Attrition"]
+                .apply(lambda s: (s == "Yes").mean())
+                .sort_values(ascending=False)
+            )
+            fig, ax = plt.subplots(figsize=(4.2, 3.2))
+            fig.patch.set_alpha(0)
+            ax.set_facecolor("none")
+            bars = ax.barh(dept_rate.index, dept_rate.values, color="#f59e0b")
+            ax.set_xlabel("Attrition rate", color="#eef7f5")
+            ax.tick_params(colors="#eef7f5")
+            for spine in ax.spines.values():
+                spine.set_color("#9fc7c1")
+            ax.xaxis.label.set_color("#eef7f5")
+            for bar, val in zip(bars, dept_rate.values):
+                ax.text(val + 0.005, bar.get_y() + bar.get_height() / 2,
+                        f"{val:.1%}", va="center", color="#eef7f5", fontsize=9)
+            st.pyplot(fig, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with col2:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown("#### Top predictors (model feature importance)")
+            importances = pd.Series(model.feature_importances_, index=feature_columns)
+            top_importances = importances.sort_values(ascending=False).head(8)
+            fig2, ax2 = plt.subplots(figsize=(4.2, 3.2))
+            fig2.patch.set_alpha(0)
+            ax2.set_facecolor("none")
+            ax2.barh(top_importances.index[::-1], top_importances.values[::-1], color="#14b8a6")
+            ax2.tick_params(colors="#eef7f5", labelsize=8)
+            for spine in ax2.spines.values():
+                spine.set_color("#9fc7c1")
+            st.pyplot(fig2, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        st.caption(
+            "Department attrition rate is computed live from the training CSV. "
+            "Feature importance comes directly from the trained Gradient Boosting model."
+        )
 
 # ==========================================
 # PAGE: About
