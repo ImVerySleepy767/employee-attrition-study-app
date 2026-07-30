@@ -5,19 +5,19 @@ import pandas as pd
 # ==========================================
 # Page Config
 # ==========================================
-st.set_page_config(page_title="Employee Attrition Predictor", page_icon="", layout="centered")
+st.set_page_config(page_title="Employee Attrition Predictor", page_icon="📊", layout="centered")
 
 # ==========================================
 # Load trained model artifact
 # ==========================================
-# NOTE: best_attrition_model.joblib must be in the SAME folder as this app.py,
+# NOTE: best_attrition_model.pkl must be in the SAME folder as this app.py,
 # both locally and in your GitHub repo.
 try:
-    artifact = joblib.load("best_attrition_model.joblib")
+    artifact = joblib.load("best_attrition_model.pkl")
     model = artifact["model"]
     feature_columns = artifact["feature_columns"]
 except FileNotFoundError:
-    st.error("Model file 'best_attrition_model.joblib' not found. "
+    st.error("Model file 'best_attrition_model.pkl' not found. "
              "Make sure it's in the same folder as this app.")
     st.stop()
 
@@ -140,7 +140,7 @@ if st.button("🔮 Predict Attrition Risk", type="primary", disabled=bool(errors
     if prediction == 1:
         st.error(f" **High Risk of Attrition** — Predicted probability: {probability:.1%}")
     else:
-        st.success(f" **Low Risk of Attrition** — Predicted probability: {probability:.1%}")
+        st.success(f"**Low Risk of Attrition** — Predicted probability: {probability:.1%}")
 
     st.progress(float(probability))
     st.caption(
